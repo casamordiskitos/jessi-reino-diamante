@@ -3,13 +3,15 @@ name: Crear APK de Jessi
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Descargar proyecto
         uses: actions/checkout@v4
 
@@ -24,13 +26,18 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Preparar Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+
       - name: Comprobar Android SDK
         run: |
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT"
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          echo "PATH=$PATH"
+          which adb || true
+          which sdkmanager || true
+          sdkmanager --version
 
       - name: Instalar dependencias
         run: npm install
@@ -48,27 +55,44 @@ jobs:
           import re
 
           p = Path("android/app/src/main/AndroidManifest.xml")
-          s = p.read_text()
 
-          s = re.sub(
-              r'(<activity\b[^>]*android:name="\.MainActivity"[^>]*)(>)',
-              lambda m: (
-                  m.group(1)
-                  if "android:screenOrientation" in m.group(1)
-                  else m.group(1) + ' android:screenOrientation="landscape"'
-              ) + m.group(2),
+          if not p.exists():
+              raise SystemExit("No se encontró AndroidManifest.xml")
+
+          s = p.read_text(encoding="utf-8")
+
+          pattern = r'(<activity\b[^>]*android:name="\.MainActivity"[^>]*)(>)'
+
+          def add_orientation(match):
+              activity = match.group(1)
+
+              if "android:screenOrientation" not in activity:
+                  activity += ' android:screenOrientation="landscape"'
+
+              return activity + match.group(2)
+
+          new_s = re.sub(
+              pattern,
+              add_orientation,
               s,
               count=1
           )
 
-          p.write_text(s)
+          p.write_text(new_s, encoding="utf-8")
+
+          print("Pantalla horizontal configurada correctamente.")
           PY
 
       - name: Compilar APK
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Comprobar APK
+        run: |
+          ls -lh android/app/build/outputs/apk/debug/
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Guardar APK
         uses: actions/upload-artifact@v4
