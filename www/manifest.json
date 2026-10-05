@@ -1,0 +1,11 @@
+{
+  "name": "Jessi y el Reino del Diamante",
+  "short_name": "Jessi Diamante",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "background_color": "#050711",
+  "theme_color": "#170d32",
+  "icons": [],
+  "orientation": "landscape",
+  "description": "Aventura romántica personalizada para Jessi"
+}

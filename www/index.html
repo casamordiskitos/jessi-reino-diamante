@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Jessi y el Reino del Diamante — V2.0</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#050711;color:#fff;font-family:system-ui,Arial}
+body{display:flex;align-items:center;justify-content:center}
+canvas{width:min(100vw,1280px);height:auto;max-height:100vh;image-rendering:auto}
+#touch{position:fixed;inset:auto 0 18px;display:none;justify-content:space-between;padding:0 18px calc(env(safe-area-inset-bottom) + 8px);pointer-events:none}
+.pad{display:flex;gap:10px}.b{pointer-events:auto;width:76px;height:76px;border-radius:18px;border:1px solid #ffffff44;background:#ffffff1c;color:white;font-size:25px}
+@media(max-width:900px){#touch{display:flex}}
+#hudExtra{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:18px;font:600 14px Arial;color:#fff;background:#0007;padding:8px 16px;border-radius:18px}#loading{position:fixed;inset:0;background:radial-gradient(circle,#2b1747,#050711);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:5;font:700 30px Georgia;color:#fff}#loading small{font:16px Arial;margin-top:18px;opacity:.7}
+@media(max-width:900px){#touch{display:flex}body{background:#02030a}canvas{width:100vw;height:56.25vw;max-height:100vh;object-fit:contain}}
+</style><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#170d32"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"></head>
+<body><div id="loading"><div>JESSI Y EL REINO DEL DIAMANTE</div><small>Cargando aventura…</small></div>
+<canvas id="game" width="1280" height="720"></canvas>
+<div id="hudExtra"><span id="ability">Habilidad: —</span><span id="worldName">Mundo 1</span></div>
+<div id="touch"><div class="pad"><button class="b" data-k="arrowleft">◀</button><button class="b" data-k="arrowright">▶</button></div><div class="pad"><button class="b" data-k="arrowup">▲</button></div></div>
+<script>
+const c=document.getElementById('game'),ctx=c.getContext('2d'),W=1280,H=720;
+setTimeout(()=>document.getElementById('loading').style.display='none',900);
+document.documentElement.style.touchAction='none';
+const K={};let scene='intro',tick=0,world=0,score=0,crystals=0,lives=3,shake=0,msg='',msgT=0,particles=[],power=0,keysCollected=0;
+addEventListener('keydown',e=>{K[e.key.toLowerCase()]=true;if([' ','arrowup'].includes(e.key.toLowerCase()))e.preventDefault();if(e.key==='Enter')startAction()});
+addEventListener('keyup',e=>K[e.key.toLowerCase()]=false);
+document.querySelectorAll('.b').forEach(b=>{let k=b.dataset.k;b.onpointerdown=()=>K[k]=1;b.onpointerup=()=>K[k]=0;b.onpointerleave=()=>K[k]=0});
+function startAction(){if(scene==='intro'||scene==='title'||scene==='gameover'){scene='play';newLevel()}}
+const hero={x:90,y:540,w:38,h:58,vx:0,vy:0,on:false,dir:1,inv:0};
+let platforms=[],enemies=[],items=[],portal={},boss={};
+function newLevel(){
+ hero.x=90;hero.y=520;hero.vx=hero.vy=0;hero.inv=50;
+ platforms=[
+ {x:0,y:640,w:1280,h:80},{x:130,y:535,w:170,h:24},{x:360,y:450,w:180,h:24},
+ {x:610,y:535,w:170,h:24},{x:840,y:440,w:180,h:24},{x:1060,y:340,w:160,h:24}];
+ if(world===1) platforms.push({x:220,y:320,w:160,h:24},{x:500,y:250,w:180,h:24},{x:790,y:320,w:180,h:24});
+ if(world===2) platforms.push({x:150,y:360,w:150,h:24},{x:390,y:280,w:180,h:24},{x:650,y:370,w:160,h:24},{x:900,y:250,w:190,h:24});
+ enemies=world===0?[
+ {x:330,y:600,v:1.5,t:0},{x:560,y:600,v:-1.7,t:0},{x:880,y:400,v:1.2,t:1}]:
+ [{x:300,y:600,v:2,t:1},{x:570,y:600,v:-1.6,t:0},{x:900,y:400,v:1.4,t:1},{x:1050,y:600,v:-2,t:0}];
+ items=[{x:215,y:490},{x:450,y:405},{x:690,y:490},{x:930,y:395},{x:1140,y:295}];
+ portal={x:1180,y:270};
+}
+function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function fx(x,y,n=12){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*8,vy:(Math.random()-.7)*8,life:30+Math.random()*40,s:2+Math.random()*4})}
+function update(){
+ if(scene==='intro'){tick++;return}
+ if(scene==='title'||scene==='gameover')return;
+ if(scene==='ending'){tick++;updateFX();return}
+ if(scene==='boss'){updateBoss();updateFX();return}
+ const L=K.arrowleft||K.a,R=K.arrowright||K.d,J=K[' ']||K.w||K.arrowup;
+ const dash=K.shift;
+ if(dash&&power>0){hero.vx=hero.dir*11;power=Math.max(0,power-1);fx(hero.x,hero.y+25,5)}
+
+ hero.vx=(R?5:0)-(L?5:0);if(hero.vx)hero.dir=hero.vx>0?1:-1;
+ if(J&&hero.on){hero.vy=-13;hero.on=false}
+ hero.vy+=.65;hero.x+=hero.vx;hero.y+=hero.vy;hero.inv=Math.max(0,hero.inv-1);
+ if(hero.x<0)hero.x=0;if(hero.x>1242)hero.x=1242;hero.on=false;
+ for(const p of platforms)if(hit(hero,p)&&hero.vy>=0&&hero.y+hero.h<=p.y+20){hero.y=p.y-hero.h;hero.vy=0;hero.on=true}
+ for(const it of items)if(!it.got&&Math.hypot(hero.x+19-it.x,hero.y+25-it.y)<32){
+  it.got=true;crystals++;score+=100;fx(it.x,it.y,15);
+  if(crystals%3===0){power++;msg='¡Habilidad DASH conseguida! Pulsa SHIFT';msgT=150}
+}
+ for(const e of enemies){
+  e.x+=e.v;if(e.x<80||e.x>1160)e.v*=-1;
+  const er={x:e.x,y:e.y,w:42,h:40};
+  if(hit(hero,er)&&hero.vy>0){e.dead=true;hero.vy=-9;score+=250;fx(e.x,e.y,20)}
+  else if(hit(hero,er)&&hero.inv===0){hero.inv=75;lives--;hero.x=90;hero.y=500;hero.vy=0;fx(hero.x,hero.y,10);if(lives<=0)scene='gameover'}
+ }
+ enemies=enemies.filter(e=>!e.dead);
+ if(hit(hero,{x:portal.x-25,y:portal.y-55,w:50,h:70})){
+  if(world===0){world=1;msg='La fortaleza del tirano te espera…';msgT=160;newLevel()}
+  else if(world===1){world=2;msg='Has llegado al Santuario del Diamante…';msgT=160;newLevel()}
+  else{boss={x:920,y:330,w:110,h:110,hp:10,v:1.7,flash:0};scene='boss';tick=0}
+}
+ updateFX();
+}
+function updateBoss(){
+ if(boss.hp<=0){scene='ending';tick=0;fx(boss.x+55,boss.y+55,120);return}
+ boss.x+=boss.v;if(boss.x<760||boss.x>1080)boss.v*=-1;boss.flash=Math.max(0,boss.flash-1);
+ if(hit(hero,boss)&&hero.vy>0){boss.hp--;hero.vy=-12;boss.flash=8;score+=500;shake=9;fx(boss.x+55,boss.y+40,25)}
+ else if(hit(hero,boss)&&hero.inv===0){hero.inv=75;lives--;hero.x=100;hero.y=500;hero.vy=0;if(lives<=0)scene='gameover'}
+}
+function updateFX(){particles=particles.filter(a=>(a.life--)>0);for(const a of particles){a.x+=a.vx;a.y+=a.vy;a.vy+=.18}}
+function txt(s,x,y,size,a=1){ctx.textAlign='center';ctx.fillStyle=`rgba(255,255,255,${a})`;ctx.font=`${size}px Georgia`;ctx.fillText(s,x,y)}
+function sky(){
+ let top=world===2?'#061b1c':(world?'#160d32':'#081a3b'),bot=world===2?'#0d5d58':(world?'#4a183c':'#145875'),q=ctx.createLinearGradient(0,0,0,H);q.addColorStop(0,top);q.addColorStop(1,bot);ctx.fillStyle=q;ctx.fillRect(0,0,W,H);
+ for(let i=0;i<100;i++){ctx.fillStyle='rgba(255,255,255,.55)';ctx.fillRect((i*149)%W,(i*83)%440,2,2)}
+}
+function draw(){
+ ctx.save();if(shake){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake--}sky();
+ if(scene==='intro')intro();else if(scene==='title')title();else if(scene==='play')worldDraw();else if(scene==='boss'){worldDraw();bossDraw()}else if(scene==='ending')ending();else gameover();
+ ctx.restore();
+}
+function intro(){
+ ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,0,W,H);txt('JESSI Y EL REINO DEL DIAMANTE',640,100,38);
+ const L=[
+ 'En un mundo muy, muy lejano…',
+ 'el Reino de Lúmina vivía protegido por el Gran Diamante.',
+ 'Pero un tirano surgió de las sombras, conquistó sus tierras',
+ 'y convirtió sus ciudades en ruinas.',
+ 'Jessica, comandante de la Resistencia, vio caer su mundo.',
+ 'Entonces juró recuperar el Tesoro Real y devolverle su esplendor.',
+ 'Sin saber que al final de su aventura encontraría algo',
+ 'mucho más valioso que todo el oro del reino…'
+ ];let n=Math.min(L.length,Math.floor(tick/48)+1);for(let i=0;i<n;i++)txt(L[i],640,175+i*40,20);
+ txt('ENTER — comenzar',640,650,18,.8)
+}
+function title(){txt('JESSI Y EL REINO DEL DIAMANTE',640,230,48);txt('Una aventura creada especialmente para Jessi',640,285,23);
+ txt('3 mundos · habilidades · enemigos · jefe final · secreto del Tesoro Real',640,330,16,.72);txt('ENTER — comenzar',640,500,22);txt('A/D o ◀ ▶ · ESPACIO/W/▲ para saltar',640,545,17,.75)}
+function worldDraw(){
+ for(const p of platforms){ctx.fillStyle=world?'#5b3b58':'#405376';ctx.fillRect(p.x,p.y,p.w,p.h);ctx.fillStyle=world?'#ca7da0':'#6eb4cc';ctx.fillRect(p.x,p.y,p.w,6)}
+ for(const it of items)if(!it.got){ctx.save();ctx.translate(it.x,it.y);ctx.rotate(Math.PI/4);ctx.fillStyle='#76eaff';ctx.fillRect(-10,-10,20,20);ctx.restore()}
+ for(const e of enemies){ctx.fillStyle=e.t?'#a65bd7':'#df5d77';ctx.fillRect(e.x,e.y,42,40);ctx.fillStyle='#fff';ctx.fillRect(e.x+8,e.y+9,7,7);ctx.fillRect(e.x+27,e.y+9,7,7)}
+ heroDraw();
+ ctx.textAlign='left';ctx.fillStyle='#fff';ctx.font='bold 18px Arial';ctx.fillText('JESSI',24,30);ctx.font='16px Arial';ctx.fillText('💎 '+crystals+'   ⭐ '+score+'   ❤️ '+lives,24,56);
+ ctx.textAlign='right';ctx.font='bold 18px Arial';ctx.fillStyle='#ffd66e';ctx.fillText(world===2?'SANTUARIO DEL DIAMANTE':(world?'FORTALEZA DEL TIRANO':'BOSQUE DE LÚMINA'),1255,30);
+ document.getElementById('worldName').textContent='Mundo '+(world+1);
+ document.getElementById('ability').textContent='DASH × '+power;
+ ctx.fillStyle='#e9c66c';ctx.fillRect(portal.x-22,portal.y-45,44,60);ctx.fillStyle='#fff2a5';ctx.fillRect(portal.x-11,portal.y-35,22,48);
+ for(const a of particles){ctx.fillStyle=['#b9f7ff','#fff','#ffd86e','#ff9ac1'][Math.floor(a.life)%4];ctx.fillRect(a.x,a.y,a.s,a.s)}
+ if(msgT){msgT--;ctx.fillStyle='#000b';ctx.fillRect(260,95,760,58);txt(msg,640,132,20)}
+}
+function heroDraw(){let b=hero.on?0:Math.sin(Date.now()/90)*2;ctx.save();ctx.translate(hero.x,hero.y+b);ctx.fillStyle='#efc1db';ctx.fillRect(8,0,23,23);ctx.fillStyle='#5e3470';ctx.fillRect(5,2,30,9);ctx.fillStyle='#7356d5';ctx.fillRect(0,23,38,35);ctx.fillStyle='#fff';ctx.fillRect(7,30,24,8);ctx.fillStyle='#f1d5b8';ctx.fillRect(4,54,12,5);ctx.fillRect(23,54,12,5);ctx.restore()}
+function bossDraw(){ctx.fillStyle='#0005';ctx.fillRect(0,0,W,H);ctx.fillStyle=boss.flash?'#fff':'#b83d67';ctx.fillRect(boss.x,boss.y,boss.w,boss.h);ctx.fillStyle='#fff';ctx.fillRect(boss.x+20,boss.y+28,17,17);ctx.fillRect(boss.x+73,boss.y+28,17,17);ctx.fillStyle='#251326';ctx.fillRect(760,72,300,18);ctx.fillStyle='#e34f68';ctx.fillRect(760,72,300*(boss.hp/8),18);txt('EL TIRANO',920,52,24);txt('Salta sobre él para derrotarlo',640,670,18,.85)}
+function chest(cx,cy,open){
+ ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#995c24';ctx.fillRect(-110,0,220,105);ctx.fillStyle='#e0aa47';ctx.fillRect(-120,-16,240,28);ctx.fillStyle='#ffd86e';ctx.fillRect(-12,14,24,28);
+ if(open){ctx.save();ctx.rotate(-.18);ctx.fillStyle='#b8742d';ctx.fillRect(-110,-72,220,55);ctx.restore()}ctx.restore()
+}
+function ring(cx,cy,rot,scale){
+ ctx.save();ctx.translate(cx,cy);ctx.rotate(rot);ctx.scale(scale,scale);ctx.shadowBlur=35;ctx.shadowColor='#9eeaff';ctx.strokeStyle='#f8f4dc';ctx.lineWidth=18;ctx.beginPath();ctx.ellipse(0,42,74,57,0,0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0;ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(0,-60);ctx.lineTo(27,-20);ctx.lineTo(0,10);ctx.lineTo(-27,-20);ctx.closePath();ctx.fill();ctx.fillStyle='#aeeeff';ctx.beginPath();ctx.moveTo(0,-53);ctx.lineTo(15,-21);ctx.lineTo(0,-5);ctx.lineTo(-15,-21);ctx.closePath();ctx.fill();ctx.restore()
+}
+function ending(){
+ ctx.fillStyle='#000c';ctx.fillRect(0,0,W,H);
+ if(tick<110){txt('¡EL REINO HA SIDO SALVADO!',640,155,38);txt('Jessica ha recuperado el Tesoro Real.',640,205,23);chest(640,405,false)}
+ else if(tick<190){txt('EL TESORO REAL',640,105,34);chest(640,405,true);txt('El cofre se abre…',640,610,22)}
+ else if(tick<430){
+ txt('EL TESORO REAL',640,95,30);chest(640,470,true);
+ let r=tick-190; ring(640,295,r*.115,.55+Math.min(r/110,.45));
+ txt('La luz del diamante ilumina todo el reino…',640,615,19,.9);
+}
+ else {txt('EL TESORO REAL',640,95,30);ring(640,245,(tick-430)*.04,.85);txt('Jessi…',640,455,32);txt('¿QUIERES CASARTE CONMIGO?',640,510,40);txt('Con todo mi amor, Iñaki ❤️',640,565,23);txt('Mi aventura favorita eres tú.',640,625,18,.8)}
+ for(const a of particles){ctx.fillStyle=['#ffd86e','#fff','#9eeaff','#ff9ac1'][Math.floor(a.life)%4];ctx.fillRect(a.x,a.y,a.s+2,a.s+2)}
+}
+function gameover(){ctx.fillStyle='#000c';ctx.fillRect(0,0,W,H);txt('LA RESISTENCIA HA CAÍDO',640,270,40);txt('No te rindas, Jessica.',640,325,23);txt('ENTER — volver a intentarlo',640,500,20)}
+newLevel();function loop(){update();draw();requestAnimationFrame(loop)}loop();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');</script></body></html>
