@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Jessi y el Reino del Diamante — V2.0</title>
+<title>Jessi y el Reino del Diamante — V3.3</title>
 <style>
 html,body{margin:0;height:100%;overflow:hidden;background:#050711;color:#fff;font-family:system-ui,Arial}
 body{display:flex;align-items:center;justify-content:center}
@@ -20,12 +20,27 @@ canvas{width:min(100vw,1280px);height:auto;max-height:100vh;image-rendering:auto
 <script>
 const c=document.getElementById('game'),ctx=c.getContext('2d'),W=1280,H=720;
 setTimeout(()=>document.getElementById('loading').style.display='none',900);
-document.documentElement.style.touchAction='none';
+document.documentElement.style.touchAction='none';document.body.style.touchAction='none';
 const K={};let scene='intro',tick=0,world=0,score=0,crystals=0,lives=3,shake=0,msg='',msgT=0,particles=[],power=0,keysCollected=0;
 addEventListener('keydown',e=>{K[e.key.toLowerCase()]=true;if([' ','arrowup'].includes(e.key.toLowerCase()))e.preventDefault();if(e.key==='Enter')startAction()});
 addEventListener('keyup',e=>K[e.key.toLowerCase()]=false);
 document.querySelectorAll('.b').forEach(b=>{let k=b.dataset.k;b.onpointerdown=()=>K[k]=1;b.onpointerup=()=>K[k]=0;b.onpointerleave=()=>K[k]=0});
-function startAction(){if(scene==='intro'||scene==='title'||scene==='gameover'){scene='play';newLevel()}}
+// Control táctil de las pantallas de inicio/fin.
+// La versión anterior solo respondía a ENTER; ahora un toque en la pantalla también continúa.
+c.addEventListener('pointerdown', e=>{
+  if(scene==='intro'||scene==='title'||scene==='gameover'){
+    e.preventDefault();
+    startAction();
+  }
+},{passive:false});
+c.addEventListener('touchstart', e=>{
+  if(scene==='intro'||scene==='title'||scene==='gameover'){
+    e.preventDefault();
+    startAction();
+  }
+},{passive:false});
+
+function startAction(){if(scene==='intro'){scene='title';tick=0;return} if(scene==='title'||scene==='gameover'){scene='play';newLevel()}}
 const hero={x:90,y:540,w:38,h:58,vx:0,vy:0,on:false,dir:1,inv:0};
 let platforms=[],enemies=[],items=[],portal={},boss={};
 function newLevel(){
@@ -44,7 +59,7 @@ function newLevel(){
 function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function fx(x,y,n=12){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*8,vy:(Math.random()-.7)*8,life:30+Math.random()*40,s:2+Math.random()*4})}
 function update(){
- if(scene==='intro'){tick++;return}
+ if(scene==='intro'){tick++;if(tick>900){scene='title';tick=0}return}
  if(scene==='title'||scene==='gameover')return;
  if(scene==='ending'){tick++;updateFX();return}
  if(scene==='boss'){updateBoss();updateFX();return}
@@ -89,25 +104,125 @@ function sky(){
 }
 function draw(){
  ctx.save();if(shake){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake--}sky();
- if(scene==='intro')intro();else if(scene==='title')title();else if(scene==='play')worldDraw();else if(scene==='boss'){worldDraw();bossDraw()}else if(scene==='ending')ending();else gameover();
+ if(scene==='intro')cinematicIntro();else if(scene==='title')title();else if(scene==='play')worldDraw();else if(scene==='boss'){worldDraw();bossDraw()}else if(scene==='ending')ending();else gameover();
  ctx.restore();
 }
-function intro(){
- ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,0,W,H);txt('JESSI Y EL REINO DEL DIAMANTE',640,100,38);
- const L=[
- 'En un mundo muy, muy lejano…',
- 'el Reino de Lúmina vivía protegido por el Gran Diamante.',
- 'Pero un tirano surgió de las sombras, conquistó sus tierras',
- 'y convirtió sus ciudades en ruinas.',
- 'Jessica, comandante de la Resistencia, vio caer su mundo.',
- 'Entonces juró recuperar el Tesoro Real y devolverle su esplendor.',
- 'Sin saber que al final de su aventura encontraría algo',
- 'mucho más valioso que todo el oro del reino…'
- ];let n=Math.min(L.length,Math.floor(tick/48)+1);for(let i=0;i<n;i++)txt(L[i],640,175+i*40,20);
- txt('ENTER — comenzar',640,650,18,.8)
+function cinematicIntro(){
+  // Cinemática de apertura: 15 s aprox., totalmente dibujada en el canvas.
+  // No necesita vídeo externo ni conexión a Internet.
+  const t=tick, sec=t/60;
+  const fade=Math.min(1,t/45,Math.max(0,(900-t)/55));
+  ctx.save();
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#02030d');g.addColorStop(.48,'#111a45');g.addColorStop(1,'#30152f');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+
+  // Estrellas y movimiento de cámara.
+  for(let i=0;i<85;i++){
+    const x=(i*173+(t*(.15+i%3*.08)))%W;
+    const y=(i*79)%430;
+    const a=.25+.5*(.5+.5*Math.sin(t*.035+i));
+    ctx.fillStyle=`rgba(210,235,255,${a})`;ctx.fillRect(x,y,2+(i%3),2+(i%2));
+  }
+  // Luna.
+  ctx.fillStyle='#e8ecff';ctx.beginPath();ctx.arc(1040,125,62,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#111a45';ctx.beginPath();ctx.arc(1064,107,62,0,Math.PI*2);ctx.fill();
+
+  // Gran Diamante en el cielo.
+  const pulse=1+.06*Math.sin(t*.09);
+  ctx.save();ctx.translate(640,145);ctx.scale(pulse,pulse);ctx.rotate(Math.sin(t*.01)*.08);
+  ctx.shadowBlur=35;ctx.shadowColor='#73eaff';ctx.fillStyle='#b9f7ff';ctx.beginPath();
+  ctx.moveTo(0,-58);ctx.lineTo(45,-10);ctx.lineTo(0,58);ctx.lineTo(-45,-10);ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;ctx.fillStyle='#ffffffaa';ctx.beginPath();ctx.moveTo(0,-45);ctx.lineTo(16,-8);ctx.lineTo(0,8);ctx.lineTo(-16,-8);ctx.closePath();ctx.fill();ctx.restore();
+
+  // Reino de Lúmina: castillo y murallas.
+  const pan=Math.min(1,t/240);
+  const baseY=535;
+  ctx.fillStyle='#080b1c';
+  ctx.fillRect(0,baseY,W,H-baseY);
+  // Montañas.
+  ctx.fillStyle='#0b1028';ctx.beginPath();ctx.moveTo(0,baseY);ctx.lineTo(170,350);ctx.lineTo(300,500);ctx.lineTo(455,320);ctx.lineTo(650,510);ctx.lineTo(820,365);ctx.lineTo(1010,510);ctx.lineTo(1140,330);ctx.lineTo(1280,500);ctx.lineTo(1280,baseY);ctx.closePath();ctx.fill();
+  // Ciudad.
+  for(let i=0;i<14;i++){
+    const x=i*105-30;
+    const h=55+(i%4)*25;
+    ctx.fillStyle='#11162f';ctx.fillRect(x,baseY-h,82,h);
+    for(let w=0;w<3;w++){ctx.fillStyle='#f6d878';ctx.fillRect(x+14+w*20,baseY-h+18,8,11)}
+  }
+  // Castillo central.
+  ctx.fillStyle='#1b2442';ctx.fillRect(515,350,250,185);
+  ctx.fillStyle='#26345b';ctx.fillRect(545,305,55,230);ctx.fillRect(680,305,55,230);
+  ctx.fillStyle='#31436f';ctx.fillRect(620,330,40,205);
+  for(const x of [545,680]){ctx.beginPath();ctx.moveTo(x,305);ctx.lineTo(x+27,265);ctx.lineTo(x+55,305);ctx.closePath();ctx.fillStyle='#4b5d87';ctx.fill()}
+  ctx.fillStyle='#0a1024';ctx.fillRect(612,450,56,85);ctx.fillStyle='#77eaff';ctx.fillRect(625,420,30,24);
+
+  // Tirano aparece desde las sombras.
+  const villain=Math.max(0,Math.min(1,(t-270)/120));
+  if(villain>0){
+    ctx.globalAlpha=villain;
+    ctx.fillStyle='#07040b';ctx.beginPath();ctx.ellipse(1030,450,120,155,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#8e315d';ctx.fillRect(985,390,90,110);
+    ctx.fillStyle='#ff547a';ctx.fillRect(1005,415,12,12);ctx.fillRect(1043,415,12,12);
+    ctx.fillStyle='#d7a2c2';ctx.beginPath();ctx.moveTo(975,390);ctx.lineTo(995,330);ctx.lineTo(1015,390);ctx.moveTo(1045,390);ctx.lineTo(1065,330);ctx.lineTo(1085,390);ctx.fill();
+    ctx.globalAlpha=1;
+  }
+
+  // Transición de destrucción: fuego y humo.
+  const ruin=Math.max(0,Math.min(1,(t-390)/150));
+  if(ruin>0){
+    ctx.globalAlpha=ruin;
+    for(let i=0;i<8;i++){
+      const x=80+i*160, flame=20+18*Math.sin(t*.08+i);
+      ctx.fillStyle='#ff7a35';ctx.beginPath();ctx.arc(x,baseY-18,flame,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#ffd35a';ctx.beginPath();ctx.arc(x,baseY-28,flame*.48,0,Math.PI*2);ctx.fill();
+    }
+    for(let i=0;i<20;i++){
+      const x=(i*71+t*.25)%W,y=baseY-70-((t+i*33)%180);
+      ctx.fillStyle='rgba(35,35,45,.55)';ctx.beginPath();ctx.arc(x,y,8+(i%4)*4,0,Math.PI*2);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // Jessica, comandante de la Resistencia, entra en primer plano.
+  const heroIn=Math.max(0,Math.min(1,(t-500)/150));
+  if(heroIn>0){
+    const hx=180+heroIn*280, hy=520;
+    ctx.save();ctx.translate(hx,hy);ctx.globalAlpha=heroIn;
+    // capa
+    ctx.fillStyle='#6f4bd4';ctx.beginPath();ctx.moveTo(-35,10);ctx.lineTo(35,10);ctx.lineTo(52,105);ctx.lineTo(-52,105);ctx.closePath();ctx.fill();
+    // cuerpo/cabeza
+    ctx.fillStyle='#e8b8d0';ctx.beginPath();ctx.arc(0,-10,22,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#2d173b';ctx.beginPath();ctx.arc(0,-20,24,Math.PI,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#f0d5bd';ctx.fillRect(-16,28,32,40);
+    // espada
+    ctx.save();ctx.rotate(-.55);ctx.fillStyle='#dffbff';ctx.fillRect(30,-35,8,95);ctx.fillStyle='#ffd86e';ctx.fillRect(18,50,34,7);ctx.restore();
+    ctx.globalAlpha=1;ctx.restore();
+  }
+
+  // Rayos de esperanza sobre Jessica.
+  if(t>650){
+    const q=Math.min(1,(t-650)/100);
+    ctx.globalAlpha=q*.35;ctx.fillStyle='#9eeaff';ctx.beginPath();ctx.moveTo(640,145);ctx.lineTo(430,535);ctx.lineTo(520,535);ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+  }
+
+  // Texto cinematográfico por escenas.
+  ctx.fillStyle=`rgba(0,0,0,${.22+.38*Math.min(1,t/220)})`;ctx.fillRect(0,0,W,H);
+  if(t<180){txt('EN UN MUNDO MUY, MUY LEJANO…',640,610,30,fade)}
+  else if(t<330){txt('EL REINO DE LÚMINA VIVÍA BAJO LA LUZ DEL GRAN DIAMANTE.',640,610,22,fade)}
+  else if(t<480){txt('PERO UN TIRANO SURGIÓ DE LAS SOMBRAS.',640,610,30,fade)}
+  else if(t<650){txt('LA RESISTENCIA FUE DERROTADA.',640,610,30,fade);txt('Y EL REINO CAYÓ EN LA OSCURIDAD.',640,650,23,fade)}
+  else if(t<820){txt('UNA COMANDANTE SE ALZÓ.',640,600,34,fade);txt('JESSICA.',640,645,42,1)}
+  else {txt('SU AVENTURA ESTÁ A PUNTO DE COMENZAR…',640,610,28,fade)}
+
+  // Indicador de interacción: tocar salta la cinemática al título.
+  if(t>180){
+    const blink=.65+.35*Math.sin(t*.09);
+    txt('TOCA LA PANTALLA PARA CONTINUAR',640,685,16,blink);
+  }
+  ctx.restore();
 }
-function title(){txt('JESSI Y EL REINO DEL DIAMANTE',640,230,48);txt('Una aventura creada especialmente para Jessi',640,285,23);
- txt('3 mundos · habilidades · enemigos · jefe final · secreto del Tesoro Real',640,330,16,.72);txt('ENTER — comenzar',640,500,22);txt('A/D o ◀ ▶ · ESPACIO/W/▲ para saltar',640,545,17,.75)}
+function title(){txt('JESSI Y EL REINO DEL DIAMANTE',640,205,48);txt('Una aventura creada especialmente para Jessi',640,265,23);
+ txt('3 mundos · habilidades · enemigos · jefe final · secreto del Tesoro Real',640,315,16,.72);txt('TOCA LA PANTALLA o pulsa ENTER — comenzar',640,485,22);txt('A/D o ◀ ▶ · ESPACIO/W/▲ para saltar',640,530,17,.75);txt('La aventura de Jessi comienza ahora.',640,585,18,.85)}
 function worldDraw(){
  for(const p of platforms){ctx.fillStyle=world?'#5b3b58':'#405376';ctx.fillRect(p.x,p.y,p.w,p.h);ctx.fillStyle=world?'#ca7da0':'#6eb4cc';ctx.fillRect(p.x,p.y,p.w,6)}
  for(const it of items)if(!it.got){ctx.save();ctx.translate(it.x,it.y);ctx.rotate(Math.PI/4);ctx.fillStyle='#76eaff';ctx.fillRect(-10,-10,20,20);ctx.restore()}
@@ -142,6 +257,6 @@ function ending(){
  else {txt('EL TESORO REAL',640,95,30);ring(640,245,(tick-430)*.04,.85);txt('Jessi…',640,455,32);txt('¿QUIERES CASARTE CONMIGO?',640,510,40);txt('Con todo mi amor, Iñaki ❤️',640,565,23);txt('Mi aventura favorita eres tú.',640,625,18,.8)}
  for(const a of particles){ctx.fillStyle=['#ffd86e','#fff','#9eeaff','#ff9ac1'][Math.floor(a.life)%4];ctx.fillRect(a.x,a.y,a.s+2,a.s+2)}
 }
-function gameover(){ctx.fillStyle='#000c';ctx.fillRect(0,0,W,H);txt('LA RESISTENCIA HA CAÍDO',640,270,40);txt('No te rindas, Jessica.',640,325,23);txt('ENTER — volver a intentarlo',640,500,20)}
+function gameover(){ctx.fillStyle='#000c';ctx.fillRect(0,0,W,H);txt('LA RESISTENCIA HA CAÍDO',640,270,40);txt('No te rindas, Jessica.',640,325,23);txt('TOCA LA PANTALLA o pulsa ENTER — volver a intentarlo',640,500,20)}
 newLevel();function loop(){update();draw();requestAnimationFrame(loop)}loop();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');</script></body></html>
