@@ -1,0 +1,8 @@
+{
+  "appId": "com.inaki.jessireinodeldiamante",
+  "appName": "Jessi y el Reino del Diamante",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#050711"
+  }
+}
